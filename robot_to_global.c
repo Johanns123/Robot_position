@@ -30,40 +30,64 @@ int main(void)
     robot.theta_1 = 0, robot.theta = 0, robot.x = robot.x_1 = robot.y = robot.y_1 = 0;
     float d = 0, d0 = 0, T = 50e-3;
     unsigned int v = 0;
+    float X_desired = 0, Y_desired = 0;
 
-    float X_desired = 10, Y_desired = 10;
-
-    theta_desired = atan2(Y_desired, X_desired) * RAD_TO_DEG; //rad
-
-    printf("Insert initial global coordinates of the robot:\n");
-    printf("X: "); scanf("%f", &global.x_1);
-    printf("Y: "); scanf("%f", &global.y_1);
-    printf("Theta: "); scanf("%f", &global.theta_1);
-    printf("\n\n");
-
-    printf("Insert the velocity of the robot:\n");
-    printf("Velocity cm/s: "); scanf("%d", &v);
-    printf("\n\n");
-
-    robot.theta = theta_desired - global.theta_1;
-
-    printf("%f %f %f\n\n\n", robot.theta, theta_desired, global.theta_1);
-    
-    printf("=============Initial values==========\n");
-    printf("x: %.2f  y: %.2f theta: %.2f\n", global.x_1, global.y_1, global.theta_1);
-    
-    Sleep(500);
-
-    while((fabs((global.x_1 - X_desired)) > 0.1) && (fabs((global.y_1 - Y_desired)) > 0.1))
+    while(1)
     {
-        printf("delta x: %.2f delta y: %.2f\n\n", fabs((global.x_1 - X_desired)), fabs((global.y_1 - Y_desired)));
-        // global.theta = global.theta_1 - theta_desired;
-        calc_distance(&d, d0, v, T);
-        calculate_coordinates(&global, &robot, d);
-        printf("=============Actual values==========\n");
-        printf("x: %.2f  y: %.2f theta: %.2f\n", global.x, global.y, global.theta);
-        printf("atan: %.2f\n\n\n\n\n", atan2(global.y_1, global.x_1)*RAD_TO_DEG);
-        Sleep(200);
+
+        printf("Insert the desired coordinates\n");
+        printf("X: ");  scanf("%f", &X_desired);
+        printf("Y: ");  scanf("%f", &Y_desired);
+        printf("\n\n");
+
+        theta_desired = atan2(Y_desired, X_desired) * RAD_TO_DEG; //rad
+
+        printf("theta desired: %.2f\n\n", theta_desired);
+
+        printf("Insert initial global coordinates of the robot:\n");
+        printf("X: "); scanf("%f", &global.x_1);
+        printf("Y: "); scanf("%f", &global.y_1);
+        printf("Theta: "); scanf("%f", &robot.theta_1);
+        printf("\n\n");
+
+        global.theta_1 = atan2(global.y_1, global.x_1)*RAD_TO_DEG;
+
+        printf("Insert the velocity of the robot:\n");
+        printf("Velocity cm/s: "); scanf("%d", &v);
+        printf("\n\n");
+        
+        printf("=============Initial values==========\n");
+        printf("x: %.2f  y: %.2f theta: %.2f\n", global.x_1, global.y_1, global.theta_1);
+
+        Sleep(500);
+
+        while((fabs((global.x_1 - X_desired)) > 0.1) && (fabs((global.y_1 - Y_desired)) > 0.1))
+        {
+            printf("delta x: %.2f delta y: %.2f\n\n", fabs((global.x_1 - X_desired)), fabs((global.y_1 - Y_desired)));
+            calc_distance(&d, d0, v, T);
+            calculate_coordinates(&global, &robot, d);
+            printf("=============Actual values==========\n");
+            printf("x: %.2f  y: %.2f theta: %.2f\n", global.x, global.y, global.theta);
+            printf("atan: %.2f\n\n\n\n\n", atan2(global.y, global.x)*RAD_TO_DEG);
+            Sleep(10);
+        }
+
+        printf("===========Desired values==========\n");
+        printf("x: %.2f  y: %.2f theta: %.2f\n\n", X_desired, Y_desired, theta_desired);
+
+        printf("===========Obtained values=========\n");
+        printf("x: %.2f  y: %.2f theta: %.2f\n\n", global.x, global.y, atan2(global.y, global.x)*RAD_TO_DEG);
+
+        printf("=============Error in %%=============\n");
+        printf("x: %.2f%%  y: %.2f%% theta: %.2f%%\n\n\n\n", (X_desired - global.x)/X_desired, (Y_desired - global.y)/Y_desired, (theta_desired - (atan2(global.y, global.x)*RAD_TO_DEG))/theta_desired);
+
+        printf("Want to continue? Press '1' to yes or '0' to no: ");
+        uint8_t choice = 0;
+        scanf("%d", &choice);
+        printf("\n\n\n\n");
+
+        if(!choice)
+            break;
     }
 
     return 0;
@@ -71,7 +95,6 @@ int main(void)
 
 void calculate_coordinates (coordinate *global, coordinate *local, float distance)
 {
-    float error;
 
     global->theta *= DEG_TO_RAD; 
     global->theta_1 *= DEG_TO_RAD;
@@ -81,18 +104,13 @@ void calculate_coordinates (coordinate *global, coordinate *local, float distanc
     global->x = global->x_1 + distance*(cos(global->theta_1 + (local->theta/2)));
     global->y = global->y_1 + distance*(sin(global->theta_1 + (local->theta/2)));
     
-    error = global->theta - (theta_desired*DEG_TO_RAD);
-
-    // printf("%f\n", error);
-
-    if(error > 0.1 || error < -0.1)
-        global->theta = global->theta_1 + local->theta;
-
+    global->theta = global->theta_1 + local->theta_1*2;
 
     global->theta_1 = global->theta; 
     global->x_1 = global->x;
     global->y_1 = global->y;
 
+    local->theta = (theta_desired*DEG_TO_RAD) - global->theta;
     local->theta_1 = local->theta;
 
     global->theta *= RAD_TO_DEG; 
