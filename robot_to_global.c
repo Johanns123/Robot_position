@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
-#include <windows.h> //for linus is  unistd
+// #include <windows.h> 
+#include <unistd.h> //for linux is  unistd
 
 #define DEG_TO_RAD M_PI/180
 #define RAD_TO_DEG 180/M_PI
@@ -59,7 +60,8 @@ int main(void)
         printf("=============Initial values==========\n");
         printf("x: %.2f  y: %.2f theta: %.2f\n", global.x_1, global.y_1, global.theta_1);
 
-        Sleep(500);
+        // Sleep(500); //usar em windows
+        usleep(500000);
 
         while((fabs((global.x_1 - X_desired)) > 0.1) && (fabs((global.y_1 - Y_desired)) > 0.1))
         {
@@ -69,7 +71,8 @@ int main(void)
             printf("=============Actual values==========\n");
             printf("x: %.2f  y: %.2f theta: %.2f\n", global.x, global.y, global.theta);
             printf("atan: %.2f\n\n\n\n\n", atan2(global.y, global.x)*RAD_TO_DEG);
-            Sleep(10);
+            // Sleep(10) //usar em windows
+            usleep(10000);
         }
 
         printf("===========Desired values==========\n");
@@ -83,12 +86,13 @@ int main(void)
 
         printf("Want to continue? Press '1' to yes or '0' to no: ");
         uint8_t choice = 0;
-        scanf("%d", &choice);
+        scanf("%hhd", &choice);
         printf("\n\n\n\n");
 
         if(!choice)
             break;
     }
+    
 
     return 0;
 }
