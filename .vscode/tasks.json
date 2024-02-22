@@ -1,0 +1,52 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "C/C++: g++.exe build active file",
+			"command": "C:\\MinGW\\bin\\g++.exe",
+			"args": [
+				"-g",
+				"-fdiagnostics-color=always",
+				"${workspaceFolder}\\src\\*.c",
+				// "${workspaceFolder}\\src\\func.c",
+				"-o",
+				"${workspaceFolder}\\build\\main.exe",
+				"-I${workspaceFolder}\\include",
+				"-Llib-mingw",
+				"-lglfw3dll",
+				"-lmingw32", // Adiciona a biblioteca MinGW
+                "-lSDL2main",
+				"-lglfw3",
+				"-lgdi32",
+				"-lopengl32",
+                "-lSDL2",
+				"-lSDL2_image", 
+				"-lSDL2_mixer",
+				"-lSDL2_ttf",
+                "-mwindows" // Necessário para aplicativos Windows SDL2
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: C:\\MinGW\\bin\\gcc.exe",
+			
+			"dependsOn": "createBuildDir" // Adiciona dependência para verificar ou criar a pasta "build"
+        },
+		
+		{
+            "label": "createBuildDir",
+            "type": "shell",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "if not exist \"${workspaceFolder}\\build\" mkdir \"${workspaceFolder}\\build\""
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }	
+	]
+}

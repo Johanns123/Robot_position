@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Build and Run",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\build\\main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "C/C++: g++.exe build active file",
+            "miDebuggerPath": "C:\\MinGW\\bin\\gdb.exe", // Ajuste o caminho conforme necessário
+        }
+    ]
+}
