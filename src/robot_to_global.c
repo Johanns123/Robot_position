@@ -19,6 +19,8 @@ typedef struct
 {
     float x;
     float y;
+    float x0;
+    float y0;
     float theta;
     float theta_1;
 } coordinate_global;
@@ -27,6 +29,8 @@ typedef struct
 {
     float x;
     float y;
+    float x0;
+    float y0;
     float theta;
     float theta_1;
     float delta_theta;
@@ -46,6 +50,7 @@ external_controller control_system(uint8_t mode, float ang_setpoint, float PV_an
 void control_motors(float w_refR, float w_refL, float *yk_MR, float *yk_ML);
 
 float T = 50e-3;
+float delta_dist = 0;
 
 int main(void)
 {
@@ -60,6 +65,8 @@ int main(void)
     external_controller ext_ctrl;
     global.theta_1 = 0, global.theta = 0;
     robot.theta_1 = 0, robot.theta = 0;
+    global.x0 = 2;
+    global.y0 = 3;
     // unsigned int v = 0;
     float X_desired = 0, Y_desired = 0;
 
@@ -105,7 +112,7 @@ int main(void)
         //calculate the actual global theta
         calculate_coordinates(&global, &robot, DS);
 
-        printf("(%3.2f) Xl:%7.4f Xg:%7.4f Yl:%7.4f Yg:%7.4f ang:%7.4f dist:%7.4f\n",float(i*T), robot.x, global.x, robot.y, global.y, global.theta, DS);
+        printf("(%3.2f) Xl:%7.4f Xg:%7.4f Yl:%7.4f Yg:%7.4f ang:%7.4f delta ang:%7.4f dist:%7.4f deltadist:%7.4f\n",float(i*T), robot.x, global.x, robot.y, global.y, global.theta, robot.delta_theta, DS, delta_dist);
         if(i == 200) //close the file with 200 samples
         {
             fclose(fp0);
@@ -172,15 +179,17 @@ int main(void)
 //Ke = V/w = 0.357995
 //v = 0.357995*w
 void calculate_coordinates (coordinate_global *global, coordinate_local *local, float distance)
-{
-    global->x = distance*(cos(global->theta_1 + (local->delta_theta/2)));
-    global->y = distance*(sin(global->theta_1 + (local->delta_theta/2)));
+{   
+    global->x = global->x0 + distance*(cos(global->theta + (local->delta_theta/2)));
+    global->y = global->y0 + distance*(sin(global->theta + (local->delta_theta/2)));
+    global->theta = global->theta + local->delta_theta;
+    
+    local->delta_theta = local->theta - local->theta_1;
+    
     local->x = distance*(cos(local->theta));
     local->y = distance*(sin(local->theta));
-
-    local->delta_theta = local->theta - local->theta_1;
-    global->theta = global->theta_1 + local->delta_theta;
-
+    // global->x0 = global->x;
+    // global->y0 = global->y;
     global->theta_1 = global->theta; 
     local->theta_1 = local->theta; 
 }
