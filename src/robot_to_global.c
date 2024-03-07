@@ -22,18 +22,13 @@ typedef struct
     float x0;
     float y0;
     float theta;
-    float theta_1;
+    float theta0;
 } coordinate_global;
 
 typedef struct
 {
-    float x;
-    float y;
-    float x0;
-    float y0;
-    float theta;
-    float theta_1;
     float delta_theta;
+    float theta;
 } coordinate_local;
 
 typedef struct
@@ -51,84 +46,88 @@ void control_motors(float w_refR, float w_refL, float *yk_MR, float *yk_ML);
 
 float T = 50e-3;
 float delta_dist = 0;
+float cossine = 0 , sine = 0;
 
 int main(void)
 {
-    
+    // FILE *fp0 = fopen("angular.txt", "w" );
+    // if(fp0 == NULL)
+    // {
+    //     printf("Error opening file!\n");
+    //     return 0;
+    // }
+    // FILE *fp1 = fopen("WrefR.txt", "w" );
+    // if(fp1 == NULL)
+    // {
+    //     printf("Error opening file!\n");
+    //     return 0;
+    // }
+    // FILE *fp2 = fopen("WrefL.txt", "w" );
+    // if(fp2 == NULL)
+    // {
+    //     printf("Error opening file!\n");
+    //     return 0;
+    // }
+    // FILE *fp3 = fopen("displacement.txt", "w" );
+    // if(fp3 == NULL)
+    // {
+    //     printf("Error opening file!\n");
+    //     return 0;
+    // }
+
+
+
     static uint16_t i = 0;
     static float v = 0, w_robot =  0, DS; //meters
     static float WR_ref = 0, WL_ref = 0, VR = 0, VL = 0, yk_MR, yk_ML;
+    float realX = 0, realY = 0;
+    float X_desired = 0, Y_desired = 0;
     // static float voltsR = 0, voltsL = 0; //for opne loop
     float theta_desired = 0, desired_displacement = 0;
     coordinate_global global;
     coordinate_local robot;
     external_controller ext_ctrl;
-    global.theta_1 = 0, global.theta = 0;
-    robot.theta_1 = 0, robot.theta = 0;
-    global.x0 = 2;
-    global.y0 = 3;
-    // unsigned int v = 0;
-    float X_desired = 0, Y_desired = 0;
-
-    FILE *fp0 = fopen("angular.txt", "w" );
-    if(fp0 == NULL)
-    {
-        printf("Error opening file!\n");
-        return 0;
-    }
-    FILE *fp1 = fopen("WrefR.txt", "w" );
-    if(fp1 == NULL)
-    {
-        printf("Error opening file!\n");
-        return 0;
-    }
-    FILE *fp2 = fopen("WrefL.txt", "w" );
-    if(fp2 == NULL)
-    {
-        printf("Error opening file!\n");
-        return 0;
-    }
-    FILE *fp3 = fopen("displacement.txt", "w" );
-    if(fp3 == NULL)
-    {
-        printf("Error opening file!\n");
-        return 0;
-    }
+    global.x0 = 1;
+    global.y0 = 1;
+    global.theta0 = 0;
+    global.x = 0;
+    global.y = 0;
 
     printf("Enter the X desired coordinate >> ");
-    scanf("%f", &X_desired);
+    scanf("%f", &global.x);
     printf("Enter the y desired coordinate >> ");
-    scanf("%f", &Y_desired);
+    scanf("%f", &global.y);
 
+    X_desired = global.x - global.x0;
+    Y_desired = global.y - global.y0;
     desired_displacement = sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
-    theta_desired = atan2(Y_desired, X_desired);
-    // theta_desired = 3.14;
-    printf("%f\n", theta_desired);
+    calculate_coordinates(&global, &robot, desired_displacement);
+    theta_desired = robot.delta_theta;
+    printf("%4f %4f %4f %4f\n", theta_desired, sine, cossine, robot.delta_theta);
     // usleep(1000000);
     Sleep(1000);
 
     while(1)
     {
         //calculate the actual global theta
-        calculate_coordinates(&global, &robot, DS);
 
-        printf("(%3.2f) Xl:%7.4f Xg:%7.4f Yl:%7.4f Yg:%7.4f ang:%7.4f delta ang:%7.4f dist:%7.4f deltadist:%7.4f\n",float(i*T), robot.x, global.x, robot.y, global.y, global.theta, robot.delta_theta, DS, delta_dist);
-        if(i == 200) //close the file with 200 samples
-        {
-            fclose(fp0);
-            fclose(fp1);
-            fclose(fp2);
-            fclose(fp3);
-            // break;
-        }
+        printf("(%3.2f) Xg:%7.4f Yg:%7.4f ang_desired:%7.4f ang:%7.4f desired_dist:%7.4f dist:%7.4f\n",float(i*T), realX, realY, theta_desired, robot.theta, desired_displacement, DS);
+        // if(i == 200) //close the file with 200 samples
+        // {
+        //     fclose(fp0);
+        //     fclose(fp1);
+        //     fclose(fp2);
+        //     fclose(fp3);
+        //     // break;
+        // }
 
-        else
-        {
-            fprintf(fp0, "%7.4f\n", global.theta);
-            fprintf(fp1, "%7.4f\n", yk_MR);
-            fprintf(fp2, "%7.4f\n", yk_ML);
-            fprintf(fp3, "%7.4f\n", DS);
-        }
+        // else
+        // {
+        //     fprintf(fp0, "%7.4f\n", global.theta);
+        //     fprintf(fp1, "%7.4f\n", yk_MR);
+        //     fprintf(fp2, "%7.4f\n", yk_ML);
+        //     fprintf(fp3, "%7.4f\n", DS);
+        // }
         i++;
 
         //calculating displacement and robot theta
@@ -137,26 +136,28 @@ int main(void)
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
         robot.theta  += w_robot;
 
+        realX = global.x0 + DS*cosf(robot.theta);
+        realY = global.y0 + DS*sinf(robot.theta);
         //system input
 
-        if(abs((desired_displacement - DS)) >= LIMIT_LINEAR_PRECISION_RATE && abs((theta_desired - global.theta)) >= LIMIT_ANGULAR_PRECISION_RATE)
+        if(abs((desired_displacement - DS)) >= LIMIT_LINEAR_PRECISION_RATE && abs((theta_desired - robot.theta)) >= LIMIT_ANGULAR_PRECISION_RATE)
         {            
-            ext_ctrl = control_system(0, theta_desired, global.theta, desired_displacement, DS);
+            ext_ctrl = control_system(0, theta_desired,robot.theta, desired_displacement, DS);
         }
 
-        else if(abs(desired_displacement - DS) >= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - global.theta) <= LIMIT_ANGULAR_PRECISION_RATE)
+        else if(abs(desired_displacement - DS) >= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - robot.theta) <= LIMIT_ANGULAR_PRECISION_RATE)
         {
-            ext_ctrl = control_system(1, theta_desired, global.theta, desired_displacement, DS);
+            ext_ctrl = control_system(1, theta_desired, robot.theta, desired_displacement, DS);
         }
 
-        else if(abs(desired_displacement - DS) <= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - global.theta) >= LIMIT_ANGULAR_PRECISION_RATE)
+        else if(abs(desired_displacement - DS) <= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - robot.theta) >= LIMIT_ANGULAR_PRECISION_RATE)
         {
-            ext_ctrl = control_system(2, theta_desired, global.theta, desired_displacement, DS);
+            ext_ctrl = control_system(2, theta_desired, robot.theta, desired_displacement, DS);
         }
 
         else
         {
-            printf("(%4.2f) displacement (m) : %7.4f | desired disp (m) : %7.4f | global theta (o) : %7.4f\n", float(i*T), DS, desired_displacement, global.theta);
+            printf("(%4.2f) displacement (m) : %7.4f | desired disp (m) : %7.4f | robot theta (o) : %7.4f\n", float(i*T), DS, desired_displacement, robot.theta);
             break;
         }
               
@@ -175,23 +176,19 @@ int main(void)
     return 0;
 }
 
-
 //Ke = V/w = 0.357995
 //v = 0.357995*w
-void calculate_coordinates (coordinate_global *global, coordinate_local *local, float distance)
-{   
-    global->x = global->x0 + distance*(cos(global->theta + (local->delta_theta/2)));
-    global->y = global->y0 + distance*(sin(global->theta + (local->delta_theta/2)));
-    global->theta = global->theta + local->delta_theta;
+void calculate_coordinates (coordinate_global *global, coordinate_local *local, float delta_distance)
+{  
     
-    local->delta_theta = local->theta - local->theta_1;
+    cossine = (acosf((global->x - global->x0)/delta_distance) - global->theta0);
     
-    local->x = distance*(cos(local->theta));
-    local->y = distance*(sin(local->theta));
-    // global->x0 = global->x;
-    // global->y0 = global->y;
-    global->theta_1 = global->theta; 
-    local->theta_1 = local->theta; 
+    sine = (asinf((global->y - global->y0)/delta_distance) - global->theta0);
+    
+    local->delta_theta = atan2f(sin(sine), cos(cossine));
+    // local->delta_theta = atan(tan(local->delta_theta));
+
+    global->theta = global->theta0 + local->delta_theta;
 }
 
 external_controller control_system(uint8_t mode, float ang_setpoint, float PV_ang_setpoint, float lin_setpoint, float PV_lin_setpoint)
