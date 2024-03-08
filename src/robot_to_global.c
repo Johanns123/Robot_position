@@ -45,7 +45,7 @@ external_controller control_system(uint8_t mode, float ang_setpoint, float PV_an
 void control_motors(float w_refR, float w_refL, float *yk_MR, float *yk_ML);
 
 float T = 50e-3;
-float delta_dist = 0;
+float delta_dist = 0, dist0 = 0;
 float cossine = 0 , sine = 0;
 
 int main(void)
@@ -87,12 +87,18 @@ int main(void)
     coordinate_global global;
     coordinate_local robot;
     external_controller ext_ctrl;
-    global.x0 = 1;
-    global.y0 = 1;
+    global.x0 = 0;
+    global.y0 = 0;
     global.theta0 = 0;
     global.x = 0;
     global.y = 0;
 
+    printf("Enter the X initial >> ");
+    scanf("%f", &global.x0);
+    printf("Enter the Y initial >> ");
+    scanf("%f", &global.y0);
+    printf("Enter the theta initial >> ");
+    scanf("%f", &global.theta0);
     printf("Enter the X desired coordinate >> ");
     scanf("%f", &global.x);
     printf("Enter the y desired coordinate >> ");
@@ -103,7 +109,7 @@ int main(void)
     desired_displacement = sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
     calculate_coordinates(&global, &robot, desired_displacement);
     theta_desired = robot.delta_theta;
-    printf("%4f %4f %4f %4f\n", theta_desired, sine, cossine, robot.delta_theta);
+    printf("%4f %4f %4f\n", sine, cossine,theta_desired);
     // usleep(1000000);
     Sleep(1000);
 
@@ -136,8 +142,9 @@ int main(void)
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
         robot.theta  += w_robot;
 
-        realX = global.x0 + DS*cosf(robot.theta);
-        realY = global.y0 + DS*sinf(robot.theta);
+        realX = DS*cosf(robot.delta_theta/2);
+        realY = DS*sinf(robot.delta_theta/2);
+
         //system input
 
         if(abs((desired_displacement - DS)) >= LIMIT_LINEAR_PRECISION_RATE && abs((theta_desired - robot.theta)) >= LIMIT_ANGULAR_PRECISION_RATE)
@@ -181,14 +188,27 @@ int main(void)
 void calculate_coordinates (coordinate_global *global, coordinate_local *local, float delta_distance)
 {  
     
-    cossine = (acosf((global->x - global->x0)/delta_distance) - global->theta0);
+    cossine = (acosf((global->x - global->x0)/delta_distance));
     
-    sine = (asinf((global->y - global->y0)/delta_distance) - global->theta0);
+    sine = (asinf((global->y - global->y0)/delta_distance));
     
-    local->delta_theta = atan2f(sin(sine), cos(cossine));
+    local->delta_theta = 2*(atan2f(sin(sine), cos(cossine)) - global->theta0);
     // local->delta_theta = atan(tan(local->delta_theta));
 
-    global->theta = global->theta0 + local->delta_theta;
+    if((local->delta_theta) >= 2*M_PI)
+        (local->delta_theta) -= 4*M_PI;
+
+    else if((local->delta_theta) <= -2*M_PI)
+        (local->delta_theta) += 4*M_PI; 
+    // local->delta_theta = atan(tan(local->delta_theta));
+
+    global->theta = global->theta0 + (local->delta_theta)/2;
+
+    if(global->theta >= 3*M_PI_2)
+        global->theta -= 2*M_PI;
+    
+    else if(global->theta <= -3*M_PI_2)
+        global->theta += 2*M_PI;
 }
 
 external_controller control_system(uint8_t mode, float ang_setpoint, float PV_ang_setpoint, float lin_setpoint, float PV_lin_setpoint)
