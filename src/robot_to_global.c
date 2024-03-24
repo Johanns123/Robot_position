@@ -8,17 +8,17 @@
 #define RAD_TO_DEG 180/M_PI
 #define LENGTH 0.146 //meters
 #define RADIUS 0.040 //meters
-#define LIMIT_LINEAR_PRECISION_RATE 0.001
-#define LIMIT_ANGULAR_PRECISION_RATE 0.001
+#define LIMIT_LINEAR_PRECISION_RATE 0.1
+#define LIMIT_ANGULAR_PRECISION_RATE 0.1
 #define LIMIT_ANGULAR_ROBOT_SPEED 18.367123
 #define LIMIT_LINEAR_ROBOT_SPEED 1.34
 #define LIMIT_ANGULAR_MOTOR_SPEED 33.52
-#define LIMIT_OUTPUT_VOLTAGE 12
+#define LIMIT_OUTPUT_VOLTAGE 12 * 0.3
 
 typedef struct
 {
-    float x;
-    float y;
+    float x[4];
+    float y[4];
     float x0;
     float y0;
     float theta;
@@ -47,6 +47,8 @@ void control_motors(float w_refR, float w_refL, float *yk_MR, float *yk_ML);
 float T = 50e-3;
 float delta_dist = 0, dist0 = 0;
 float cossine = 0 , sine = 0;
+float theta_old = 0;
+int iterador = 0;
 
 int main(void)
 {
@@ -90,25 +92,34 @@ int main(void)
     global.x0 = 0;
     global.y0 = 0;
     global.theta0 = 0;
-    global.x = 0;
-    global.y = 0;
+    global.x[0] = 0.45;
+    global.x[1] = 0.45;
+    global.x[2] = 0.0;
+    global.x[3] = 0.0;
 
-    printf("Enter the X initial >> ");
-    scanf("%f", &global.x0);
-    printf("Enter the Y initial >> ");
-    scanf("%f", &global.y0);
-    printf("Enter the theta initial >> ");
-    scanf("%f", &global.theta0);
-    printf("Enter the X desired coordinate >> ");
-    scanf("%f", &global.x);
-    printf("Enter the y desired coordinate >> ");
-    scanf("%f", &global.y);
+    global.y[0] = 0.0;
+    global.y[1] = 0.45;
+    global.y[2] = 0.45;
+    global.y[3] = 0.0;
 
-    X_desired = global.x - global.x0;
-    Y_desired = global.y - global.y0;
+    // printf("Enter the X initial >> ");
+    // scanf("%f", &global.x0);
+    // printf("Enter the Y initial >> ");
+    // scanf("%f", &global.y0);
+    // printf("Enter the theta initial >> ");
+    // scanf("%f", &global.theta0);
+    // printf("Enter the X desired coordinate >> ");
+    // scanf("%f", &global.x);
+    // printf("Enter the y desired coordinate >> ");
+    // scanf("%f", &global.y);
+
+    X_desired = global.x[iterador] - global.x0;
+    Y_desired = global.y[iterador] - global.y0;
     desired_displacement = sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
-    calculate_coordinates(&global, &robot, desired_displacement);
-    theta_desired = robot.delta_theta;
+    delta_dist = desired_displacement - dist0;
+    calculate_coordinates(&global, &robot, delta_dist);
+    dist0 = desired_displacement;
+    theta_desired = robot.delta_theta + theta_old;
     printf("%4f %4f %4f\n", sine, cossine,theta_desired);
     // usleep(1000000);
     Sleep(1000);
@@ -117,8 +128,7 @@ int main(void)
     {
         //calculate the actual global theta
 
-        printf("(%3.2f) Xg:%7.4f Yg:%7.4f ang_desired:%7.4f ang:%7.4f desired_dist:%7.4f dist:%7.4f\n",float(i*T), realX, realY, theta_desired, robot.theta, desired_displacement, DS);
-        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) Xg:%7.4f Yg:%7.4f ang_desired:%7.4f ang:%7.4f desired_dist:%7.4f dist:%7.4f\n",float(i*T), realX, realY, theta_desired, robot.theta, desired_displacement, DS);        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -137,13 +147,19 @@ int main(void)
         i++;
 
         //calculating displacement and robot theta
+        static float delta_distance = 0, distance0 = 0, delta_theta_glob = 0, theta0_glob = 0;
+
         v       = (RADIUS * ((yk_MR) + (yk_ML)) / 2) * T;
         DS     += v;
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
         robot.theta  += w_robot;
+        delta_distance = DS - distance0;
+        distance0  = DS;
+        delta_theta_glob = robot.theta - theta0_glob;
+        theta0_glob = robot.theta;
 
-        realX = DS*cosf(robot.delta_theta/2);
-        realY = DS*sinf(robot.delta_theta/2);
+        realX = global.x0 + delta_dist*cosf(global.theta0 + robot.delta_theta/2);
+        realY = global.y0 + delta_dist*sinf(global.theta0 + robot.delta_theta/2);
 
         //system input
 
@@ -164,8 +180,27 @@ int main(void)
 
         else
         {
-            printf("(%4.2f) displacement (m) : %7.4f | desired disp (m) : %7.4f | robot theta (o) : %7.4f\n", float(i*T), DS, desired_displacement, robot.theta);
-            break;
+            // printf("(%4.2f) displacement (m) : %7.4f | desired disp (m) : %7.4f | robot theta (o) : %7.4f\n", float(i*T), DS, desired_displacement, robot.theta);
+            // break;
+            // flag_stop = 0;
+            global.x0 = global.x[iterador];
+            global.y0 = global.y[iterador];
+            global.theta0 = global.theta;
+            iterador++;
+            if(iterador > 3)
+            {
+                iterador = 0;
+                break;
+            }
+            X_desired = global.x[iterador] - global.x0;
+            Y_desired = global.y[iterador] - global.y0;
+            desired_displacement += sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
+            delta_dist = desired_displacement - dist0;
+            calculate_coordinates(&global, &robot, delta_dist);
+            theta_desired = robot.delta_theta + theta_old;
+            // printf("%4f %4f %4f %4f %4f %4f %d\n", desired_displacement, dist0, delta_dist, theta_desired, theta_old, robot.delta_theta, iterador);
+            theta_old = theta_desired;
+            dist0 = desired_displacement;
         }
               
         VR  = ((2*ext_ctrl.uk_disp) + (ext_ctrl.uk_ang*LENGTH))/(2);
@@ -188,13 +223,29 @@ int main(void)
 void calculate_coordinates (coordinate_global *global, coordinate_local *local, float delta_distance)
 {  
     
-    cossine = (acosf((global->x - global->x0)/delta_distance));
+    static float operand1 = 0;
+    static float operand2 = 0;
+
+    operand1 = (global->x[iterador] - global->x0)/delta_distance;
+
+    if(operand1 > 1)    operand1 = 1;
+
+    else if(operand1 < -1) operand1 = -1;
+
+    operand2 = (global->y[iterador] - global->y0)/delta_distance; 
+
+    if(operand2 > 1)    operand2 = 1;
+
+    else if(operand2 < -1) operand2 = -1;
+
+    cossine = acos(operand1);
     
-    sine = (asinf((global->y - global->y0)/delta_distance));
+    sine = asinf(operand2);
     
     local->delta_theta = 2*(atan2f(sin(sine), cos(cossine)) - global->theta0);
     // local->delta_theta = atan(tan(local->delta_theta));
 
+    // printf("%4f %4f\n", operand1, cossine);
     if((local->delta_theta) >= 2*M_PI)
         (local->delta_theta) -= 4*M_PI;
 
@@ -209,6 +260,7 @@ void calculate_coordinates (coordinate_global *global, coordinate_local *local, 
     
     else if(global->theta <= -3*M_PI_2)
         global->theta += 2*M_PI;
+
 }
 
 external_controller control_system(uint8_t mode, float ang_setpoint, float PV_ang_setpoint, float lin_setpoint, float PV_lin_setpoint)
