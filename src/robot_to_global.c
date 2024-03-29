@@ -8,28 +8,23 @@
 #define RAD_TO_DEG 180/M_PI
 #define LENGTH 0.146 //meters
 #define RADIUS 0.040 //meters
-#define LIMIT_LINEAR_PRECISION_RATE 0.1
-#define LIMIT_ANGULAR_PRECISION_RATE 0.1
 #define LIMIT_ANGULAR_ROBOT_SPEED 18.367123
 #define LIMIT_LINEAR_ROBOT_SPEED 1.34
 #define LIMIT_ANGULAR_MOTOR_SPEED 33.52
-#define LIMIT_OUTPUT_VOLTAGE 12 * 0.3
+#define LIMIT_OUTPUT_VOLTAGE 12
+#define NUM_POINTS 4 
+
 
 typedef struct
 {
-    float x[4];
-    float y[4];
+    float x;
+    float y;
     float x0;
     float y0;
     float theta;
     float theta0;
 } coordinate_global;
 
-typedef struct
-{
-    float delta_theta;
-    float theta;
-} coordinate_local;
 
 typedef struct
 {
@@ -40,15 +35,21 @@ typedef struct
 } external_controller;
 
 
-void calculate_coordinates (coordinate_global *global, coordinate_local *local, float distance);
-external_controller control_system(uint8_t mode, float ang_setpoint, float PV_ang_setpoint, float lin_setpoint, float PV_lin_setpoint);
+void calculate_coordinates (coordinate_global *global);
+external_controller control_system(float error_ang, float error_lin);
 void control_motors(float w_refR, float w_refL, float *yk_MR, float *yk_ML);
+void calc_pose(void);
+
 
 float T = 50e-3;
-float delta_dist = 0, dist0 = 0;
-float cossine = 0 , sine = 0;
-float theta_old = 0;
 int iterador = 0;
+float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
+float y_goal [NUM_POINTS] = {0.0, 1.0, 1.0, 0.0};
+float phi = 0, phi0 = 0, phi_desired = 0, delta_phi = 0;
+float delta_distance = 0, distance0 = 0;
+float x = 0, y = 0;
+float error_x = 0, error_y = 0;
+
 
 int main(void)
 {
@@ -82,45 +83,16 @@ int main(void)
     static uint16_t i = 0;
     static float v = 0, w_robot =  0, DS; //meters
     static float WR_ref = 0, WL_ref = 0, VR = 0, VL = 0, yk_MR, yk_ML;
-    float realX = 0, realY = 0;
-    float X_desired = 0, Y_desired = 0;
+    static float error_disp = 0, error_angular = 0;
     // static float voltsR = 0, voltsL = 0; //for opne loop
-    float theta_desired = 0, desired_displacement = 0;
     coordinate_global global;
-    coordinate_local robot;
     external_controller ext_ctrl;
     global.x0 = 0;
     global.y0 = 0;
+    global.x = 0;
+    global.y = 0;
     global.theta0 = 0;
-    global.x[0] = 0.45;
-    global.x[1] = 0.45;
-    global.x[2] = 0.0;
-    global.x[3] = 0.0;
 
-    global.y[0] = 0.0;
-    global.y[1] = 0.45;
-    global.y[2] = 0.45;
-    global.y[3] = 0.0;
-
-    // printf("Enter the X initial >> ");
-    // scanf("%f", &global.x0);
-    // printf("Enter the Y initial >> ");
-    // scanf("%f", &global.y0);
-    // printf("Enter the theta initial >> ");
-    // scanf("%f", &global.theta0);
-    // printf("Enter the X desired coordinate >> ");
-    // scanf("%f", &global.x);
-    // printf("Enter the y desired coordinate >> ");
-    // scanf("%f", &global.y);
-
-    X_desired = global.x[iterador] - global.x0;
-    Y_desired = global.y[iterador] - global.y0;
-    desired_displacement = sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
-    delta_dist = desired_displacement - dist0;
-    calculate_coordinates(&global, &robot, delta_dist);
-    dist0 = desired_displacement;
-    theta_desired = robot.delta_theta + theta_old;
-    printf("%4f %4f %4f\n", sine, cossine,theta_desired);
     // usleep(1000000);
     Sleep(1000);
 
@@ -128,7 +100,7 @@ int main(void)
     {
         //calculate the actual global theta
 
-        printf("(%3.2f) Xg:%7.4f Yg:%7.4f ang_desired:%7.4f ang:%7.4f desired_dist:%7.4f dist:%7.4f\n",float(i*T), realX, realY, theta_desired, robot.theta, desired_displacement, DS);        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -147,60 +119,41 @@ int main(void)
         i++;
 
         //calculating displacement and robot theta
-        static float delta_distance = 0, distance0 = 0, delta_theta_glob = 0, theta0_glob = 0;
-
+        calc_pose();
+        calculate_coordinates(&global);
         v       = (RADIUS * ((yk_MR) + (yk_ML)) / 2) * T;
         DS     += v;
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
-        robot.theta  += w_robot;
+        phi  += w_robot;
         delta_distance = DS - distance0;
         distance0  = DS;
-        delta_theta_glob = robot.theta - theta0_glob;
-        theta0_glob = robot.theta;
+        delta_phi = phi - phi0;
+        phi0 = phi;
 
-        realX = global.x0 + delta_dist*cosf(global.theta0 + robot.delta_theta/2);
-        realY = global.y0 + delta_dist*sinf(global.theta0 + robot.delta_theta/2);
+        phi_desired = atan2f(y_goal[iterador]-y, x_goal[iterador]-x);
+        error_x = x_goal[iterador] - x;
+        error_y = y_goal[iterador] - y;
+        error_disp = sqrt((error_x*error_x)+(error_y*error_y));
+        error_angular = atan2f(sin(phi_desired-phi), cos(phi_desired-phi));
 
         //system input
 
-        if(abs((desired_displacement - DS)) >= LIMIT_LINEAR_PRECISION_RATE && abs((theta_desired - robot.theta)) >= LIMIT_ANGULAR_PRECISION_RATE)
-        {            
-            ext_ctrl = control_system(0, theta_desired,robot.theta, desired_displacement, DS);
-        }
-
-        else if(abs(desired_displacement - DS) >= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - robot.theta) <= LIMIT_ANGULAR_PRECISION_RATE)
+        if(abs(error_x) <= 0.1 && abs(error_y) <= 0.1)
         {
-            ext_ctrl = control_system(1, theta_desired, robot.theta, desired_displacement, DS);
+            if(iterador <= (NUM_POINTS-1))
+                iterador++;
+
+            else
+            {
+                // i = 0;
+                break;    
+            }
         }
 
-        else if(abs(desired_displacement - DS) <= LIMIT_LINEAR_PRECISION_RATE && abs(theta_desired - robot.theta) >= LIMIT_ANGULAR_PRECISION_RATE)
-        {
-            ext_ctrl = control_system(2, theta_desired, robot.theta, desired_displacement, DS);
-        }
-
+        
         else
         {
-            // printf("(%4.2f) displacement (m) : %7.4f | desired disp (m) : %7.4f | robot theta (o) : %7.4f\n", float(i*T), DS, desired_displacement, robot.theta);
-            // break;
-            // flag_stop = 0;
-            global.x0 = global.x[iterador];
-            global.y0 = global.y[iterador];
-            global.theta0 = global.theta;
-            iterador++;
-            if(iterador > 3)
-            {
-                iterador = 0;
-                break;
-            }
-            X_desired = global.x[iterador] - global.x0;
-            Y_desired = global.y[iterador] - global.y0;
-            desired_displacement += sqrt((X_desired*X_desired)+(Y_desired*Y_desired));
-            delta_dist = desired_displacement - dist0;
-            calculate_coordinates(&global, &robot, delta_dist);
-            theta_desired = robot.delta_theta + theta_old;
-            // printf("%4f %4f %4f %4f %4f %4f %d\n", desired_displacement, dist0, delta_dist, theta_desired, theta_old, robot.delta_theta, iterador);
-            theta_old = theta_desired;
-            dist0 = desired_displacement;
+            ext_ctrl = control_system(error_angular, error_disp);
         }
               
         VR  = ((2*ext_ctrl.uk_disp) + (ext_ctrl.uk_ang*LENGTH))/(2);
@@ -218,107 +171,46 @@ int main(void)
     return 0;
 }
 
-//Ke = V/w = 0.357995
-//v = 0.357995*w
-void calculate_coordinates (coordinate_global *global, coordinate_local *local, float delta_distance)
-{  
-    
-    static float operand1 = 0;
-    static float operand2 = 0;
-
-    operand1 = (global->x[iterador] - global->x0)/delta_distance;
-
-    if(operand1 > 1)    operand1 = 1;
-
-    else if(operand1 < -1) operand1 = -1;
-
-    operand2 = (global->y[iterador] - global->y0)/delta_distance; 
-
-    if(operand2 > 1)    operand2 = 1;
-
-    else if(operand2 < -1) operand2 = -1;
-
-    cossine = acos(operand1);
-    
-    sine = asinf(operand2);
-    
-    local->delta_theta = 2*(atan2f(sin(sine), cos(cossine)) - global->theta0);
-    // local->delta_theta = atan(tan(local->delta_theta));
-
-    // printf("%4f %4f\n", operand1, cossine);
-    if((local->delta_theta) >= 2*M_PI)
-        (local->delta_theta) -= 4*M_PI;
-
-    else if((local->delta_theta) <= -2*M_PI)
-        (local->delta_theta) += 4*M_PI; 
-    // local->delta_theta = atan(tan(local->delta_theta));
-
-    global->theta = global->theta0 + (local->delta_theta)/2;
-
-    if(global->theta >= 3*M_PI_2)
-        global->theta -= 2*M_PI;
-    
-    else if(global->theta <= -3*M_PI_2)
-        global->theta += 2*M_PI;
-
+void calc_pose(void)
+{
+    x = x + delta_distance*cosf(phi);
+    y = y + delta_distance*sinf(phi);
 }
 
-external_controller control_system(uint8_t mode, float ang_setpoint, float PV_ang_setpoint, float lin_setpoint, float PV_lin_setpoint)
+//Ke = V/w = 0.357995
+//v = 0.357995*w
+void calculate_coordinates (coordinate_global *global)
+{  
+    global->x = global->x + delta_distance*cosf(global->theta0 + delta_phi/2);
+    global->y = global->y + delta_distance*sinf(global->theta0 + delta_phi/2);
+    global->theta = global->theta0 + delta_phi;
+    global->theta0 = global->theta;
+
+    // printf("%4.2f %4.2f %4.2f %4.2f %4.2f\n", global->x, delta_distance, global->theta0, delta_phi, delta_distance*cosf(global->theta0 + delta_phi/2));
+}
+
+external_controller control_system(float error_ang, float error_lin)
 {
-    static float error_ang_k = 0, error_ang_k1 = 0,
-    error_disp_k, error_disp_k1;
+    static float error_ang_k1 = 0, error_disp_k1;
     external_controller ang_disp;
 
-    if(mode == 0)
-    {
-        error_ang_k = ang_setpoint - PV_ang_setpoint;
-        ang_disp.uk_ang = 1.4939*error_ang_k - 1.442808*error_ang_k1 + ang_disp.uk_ang1;
-        if(ang_disp.uk_ang > LIMIT_ANGULAR_ROBOT_SPEED)
-            ang_disp.uk_ang  = LIMIT_ANGULAR_ROBOT_SPEED;
-        else if(ang_disp.uk_ang < -LIMIT_ANGULAR_ROBOT_SPEED)
-            ang_disp.uk_ang = -LIMIT_ANGULAR_ROBOT_SPEED;
-        // uk = 0.7845; //w //open loop
+    ang_disp.uk_ang = 1.4939*error_ang - 1.442808*error_ang_k1 + ang_disp.uk_ang1;
+    if(ang_disp.uk_ang > LIMIT_ANGULAR_ROBOT_SPEED)
+        ang_disp.uk_ang  = LIMIT_ANGULAR_ROBOT_SPEED;
+    else if(ang_disp.uk_ang < -LIMIT_ANGULAR_ROBOT_SPEED)
+        ang_disp.uk_ang = -LIMIT_ANGULAR_ROBOT_SPEED;
+    // uk = 0.7845; //w //open loop
 
-        error_ang_k1 = error_ang_k;
-        ang_disp.uk_ang1 = ang_disp.uk_ang;
+    error_ang_k1 = error_ang;
+    ang_disp.uk_ang1 = ang_disp.uk_ang;
 
-        error_disp_k = lin_setpoint - PV_lin_setpoint;
-        ang_disp.uk_disp = 1.4939*error_disp_k - 1.442808*error_disp_k1 + ang_disp.uk_disp1; //linear speed
-        if(ang_disp.uk_disp > LIMIT_LINEAR_ROBOT_SPEED)
-            ang_disp.uk_disp  = LIMIT_LINEAR_ROBOT_SPEED;
-        else if(ang_disp.uk_disp < -LIMIT_LINEAR_ROBOT_SPEED)
-            ang_disp.uk_disp = -LIMIT_LINEAR_ROBOT_SPEED;
-        error_disp_k1 = error_disp_k;
-        ang_disp.uk_disp1 = ang_disp.uk_disp;
-    }
-
-    else if(mode == 1)
-    {
-        error_disp_k = lin_setpoint - PV_lin_setpoint;
-        ang_disp.uk_disp = 1.4939*error_disp_k - 1.442808*error_disp_k1 + ang_disp.uk_disp1; //linear speed
-        if(ang_disp.uk_disp > LIMIT_LINEAR_ROBOT_SPEED)
-            ang_disp.uk_disp  = LIMIT_LINEAR_ROBOT_SPEED;
-        else if(ang_disp.uk_disp < -LIMIT_LINEAR_ROBOT_SPEED)
-            ang_disp.uk_disp = -LIMIT_LINEAR_ROBOT_SPEED;
-        error_disp_k1 = error_disp_k;
-        ang_disp.uk_disp1 = ang_disp.uk_disp;
-    }
-
-    else
-    {
-        error_ang_k = ang_setpoint - PV_ang_setpoint;
-        ang_disp.uk_ang = 1.4939*error_ang_k - 1.442808*error_ang_k1 + ang_disp.uk_ang1;
-        if(ang_disp.uk_ang > LIMIT_ANGULAR_ROBOT_SPEED)
-            ang_disp.uk_ang  = LIMIT_ANGULAR_ROBOT_SPEED;
-        else if(ang_disp.uk_ang < -LIMIT_ANGULAR_ROBOT_SPEED)
-            ang_disp.uk_ang = -LIMIT_ANGULAR_ROBOT_SPEED;
-        // uk = 0.7845; //w //open loop
-
-        error_ang_k1 = error_ang_k;
-        ang_disp.uk_ang1 = ang_disp.uk_ang;
-
-        ang_disp.uk_disp = 0; //zero linear speed
-    }
+    ang_disp.uk_disp = 1.4939*error_lin - 1.442808*error_disp_k1 + ang_disp.uk_disp1; //linear speed
+    if(ang_disp.uk_disp > LIMIT_LINEAR_ROBOT_SPEED)
+        ang_disp.uk_disp  = LIMIT_LINEAR_ROBOT_SPEED;
+    else if(ang_disp.uk_disp < -LIMIT_LINEAR_ROBOT_SPEED)
+        ang_disp.uk_disp = -LIMIT_LINEAR_ROBOT_SPEED;
+    error_disp_k1 = error_lin;
+    ang_disp.uk_disp1 = ang_disp.uk_disp;
 
     // V_robot = 0.5*T; // m/s - definido        
     // uk_disp = V_robot/T;
