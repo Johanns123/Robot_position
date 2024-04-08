@@ -42,9 +42,11 @@ void calc_pose(void);
 
 
 float T = 50e-3;
-int iterador = 0;
-float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
-float y_goal [NUM_POINTS] = {0.0, 1.0, 1.0, 0.0};
+// int iterador = 0;
+// float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
+// float y_goal [NUM_POINTS] = {0.0, 1.0, 1.0, 0.0};
+float x_goal = 0;
+float y_goal = 0;
 float phi = 0, phi0 = 0, phi_desired = 0, delta_phi = 0;
 float delta_distance = 0, distance0 = 0;
 float x = 0, y = 0;
@@ -78,8 +80,6 @@ int main(void)
     //     return 0;
     // }
 
-
-
     static uint16_t i = 0;
     static float v = 0, w_robot =  0, DS; //meters
     static float WR_ref = 0, WL_ref = 0, VR = 0, VL = 0, yk_MR, yk_ML;
@@ -93,14 +93,19 @@ int main(void)
     global.y = 0;
     global.theta0 = 0;
 
+    printf("Insert the desired coordinates\n");
+    printf("Insert X goal>> ");
+    scanf("%f", &x_goal);
+    printf("Insert Y goal>> ");
+    scanf("%f", &y_goal);
+
     // usleep(1000000);
     Sleep(1000);
 
     while(1)
     {
-        //calculate the actual global theta
-
-        printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
+        // printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f\n",float(i*T), x_goal, y_goal, x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -130,9 +135,9 @@ int main(void)
         delta_phi = phi - phi0;
         phi0 = phi;
 
-        phi_desired = atan2f(y_goal[iterador]-y, x_goal[iterador]-x);
-        error_x = x_goal[iterador] - x;
-        error_y = y_goal[iterador] - y;
+        phi_desired = atan2f(y_goal-y, x_goal-x);
+        error_x = x_goal - x;
+        error_y = y_goal - y;
         error_disp = sqrt((error_x*error_x)+(error_y*error_y));
         error_angular = atan2f(sin(phi_desired-phi), cos(phi_desired-phi));
 
@@ -140,14 +145,15 @@ int main(void)
 
         if(abs(error_x) <= 0.1 && abs(error_y) <= 0.1)
         {
-            if(iterador <= (NUM_POINTS-1))
-                iterador++;
+            // if(iterador <= (NUM_POINTS-1))
+            //     iterador++;
 
-            else
-            {
-                // i = 0;
-                break;    
-            }
+            // else
+            // {
+            //     // i = 0;
+            //     break;    
+            // }
+            break;
         }
 
         
