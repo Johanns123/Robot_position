@@ -46,12 +46,15 @@ float T = 50e-3;
 // float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
 // float y_goal [NUM_POINTS] = {0.0, 1.0, 1.0, 0.0};
 float x_goal = 0;
+float x_goal_global = 0;
 float y_goal = 0;
+float y_goal_global = 0;
 float phi = 0, phi0 = 0, phi_desired = 0, delta_phi = 0;
 float delta_distance = 0, distance0 = 0;
 float x = 0, y = 0;
 float error_x = 0, error_y = 0;
-
+float delta_s_desired = 0;
+float DS;
 
 int main(void)
 {
@@ -81,31 +84,44 @@ int main(void)
     // }
 
     static uint16_t i = 0;
-    static float v = 0, w_robot =  0, DS; //meters
+    static float v = 0, w_robot =  0; //meters
     static float WR_ref = 0, WL_ref = 0, VR = 0, VL = 0, yk_MR, yk_ML;
     static float error_disp = 0, error_angular = 0;
     // static float voltsR = 0, voltsL = 0; //for opne loop
     coordinate_global global;
     external_controller ext_ctrl;
-    global.x0 = 0;
-    global.y0 = 0;
     global.x = 0;
     global.y = 0;
     global.theta0 = 0;
+    
+
+    printf("Where is your Robot?\n");
+    printf("Insert X global position>> ");
+    scanf("%f", &global.x);
+    printf("Insert Y global position>> ");
+    scanf("%f", &global.y);
+    printf("Insert the Robot to Global angle>> ");
+    scanf("%f", &phi);
 
     printf("Insert the desired coordinates\n");
     printf("Insert X goal>> ");
-    scanf("%f", &x_goal);
+    scanf("%f", &x_goal_global);
     printf("Insert Y goal>> ");
-    scanf("%f", &y_goal);
+    scanf("%f", &y_goal_global);
 
+    x_goal = x_goal_global - global.x;
+    y_goal = y_goal_global - global.y;
+    phi = phi * M_PI/180;
+    
+    delta_s_desired = sqrtf(powf((float)(x_goal),2)+ powf((float)(y_goal),2));
+    phi_desired     = atan2f(y_goal,x_goal);
     // usleep(1000000);
     Sleep(1000);
 
     while(1)
     {
         // printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
-        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f\n",float(i*T), x_goal, y_goal, x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f\n",float(i*T), delta_distance, delta_phi, x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -135,32 +151,47 @@ int main(void)
         delta_phi = phi - phi0;
         phi0 = phi;
 
-        phi_desired = atan2f(y_goal-y, x_goal-x);
-        error_x = x_goal - x;
-        error_y = y_goal - y;
-        error_disp = sqrt((error_x*error_x)+(error_y*error_y));
-        error_angular = atan2f(sin(phi_desired-phi), cos(phi_desired-phi));
+        // phi_desired = atan2f(y_goal-y, x_goal-x);
+        // error_x = x_goal - x;
+        // error_y = y_goal - y;
+        // error_disp = sqrt((error_x*error_x)+(error_y*error_y));
+        // error_angular = atan2f(sin(phi_desired-phi), cos(phi_desired-phi));
+        error_disp = delta_s_desired - DS;
+        error_angular = phi_desired-phi;
 
         //system input
 
-        if(abs(error_x) <= 0.1 && abs(error_y) <= 0.1)
-        {
-            // if(iterador <= (NUM_POINTS-1))
-            //     iterador++;
+        // if(abs(error_x) <= 0.1 && abs(error_y) <= 0.1)
+        // {
+        //     // if(iterador <= (NUM_POINTS-1))
+        //     //     iterador++;
 
-            // else
-            // {
-            //     // i = 0;
-            //     break;    
-            // }
-            break;
-        }
+        //     // else
+        //     // {
+        //     //     // i = 0;
+        //     //     break;    
+        //     // }
+        //     break;
+        // }
+
+        // if(abs(error_disp) <= 0.01)
+        // {
+        //     // if(iterador <= (NUM_POINTS-1))
+        //     //     iterador++;
+
+        //     // else
+        //     // {
+        //     //     // i = 0;
+        //     //     break;    
+        //     // }
+        //     break;
+        // }
 
         
-        else
-        {
+        // else
+        // {
             ext_ctrl = control_system(error_angular, error_disp);
-        }
+        // }
               
         VR  = ((2*ext_ctrl.uk_disp) + (ext_ctrl.uk_ang*LENGTH))/(2);
         VL  = ((2*ext_ctrl.uk_disp) - (ext_ctrl.uk_ang*LENGTH))/(2);
@@ -179,16 +210,16 @@ int main(void)
 
 void calc_pose(void)
 {
-    x = x + delta_distance*cosf(phi);
-    y = y + delta_distance*sinf(phi);
+    x = DS*cosf(phi);
+    y = DS*sinf(phi);
 }
 
 //Ke = V/w = 0.357995
 //v = 0.357995*w
 void calculate_coordinates (coordinate_global *global)
 {  
-    global->x = global->x + delta_distance*cosf(global->theta0 + delta_phi/2);
-    global->y = global->y + delta_distance*sinf(global->theta0 + delta_phi/2);
+    global->x = DS*cosf(global->theta0 + delta_phi/2);
+    global->y = DS*sinf(global->theta0 + delta_phi/2);
     global->theta = global->theta0 + delta_phi;
     global->theta0 = global->theta;
 
