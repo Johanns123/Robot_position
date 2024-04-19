@@ -8,9 +8,11 @@
 #define RAD_TO_DEG 180/M_PI
 #define LENGTH 0.146 //meters
 #define RADIUS 0.040 //meters
-#define LIMIT_ANGULAR_ROBOT_SPEED 18.367123
-#define LIMIT_LINEAR_ROBOT_SPEED 1.34
-#define LIMIT_ANGULAR_MOTOR_SPEED 33.52
+#define PERCENTAGE_ANGULAR 0.6
+#define PERCENTAGE_LINEAR 0.3
+#define LIMIT_ANGULAR_ROBOT_SPEED 18.367123 * PERCENTAGE_LINEAR 
+#define LIMIT_LINEAR_ROBOT_SPEED 1.34 * PERCENTAGE_ANGULAR
+#define LIMIT_ANGULAR_MOTOR_SPEED 33.52 
 #define LIMIT_OUTPUT_VOLTAGE 12
 #define NUM_POINTS 4 
 
@@ -51,7 +53,7 @@ float phi = 0, phi0 = 0, phi_desired = 0, delta_phi = 0;
 float delta_distance = 0, distance0 = 0;
 float x = 0, y = 0;
 float error_x = 0, error_y = 0;
-
+int iterador = 0;
 
 int main(void)
 {
@@ -92,6 +94,8 @@ int main(void)
     global.x = 0;
     global.y = 0;
     global.theta0 = 0;
+    global.theta = 0;
+    phi = -M_PI;
 
     printf("Insert the desired coordinates\n");
     printf("Insert X goal>> ");
@@ -105,7 +109,7 @@ int main(void)
     while(1)
     {
         // printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
-        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f\n",float(i*T), x_goal, y_goal, x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f phi :%7.4f phi desired:%7.4f\n",float(i*T), x_goal, y_goal, x, y, global.x, global.y, phi, phi_desired);        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -130,11 +134,11 @@ int main(void)
         DS     += v;
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
         phi  += w_robot;
+        phi = atan2f(sinf(phi), cosf(phi));
         delta_distance = DS - distance0;
         distance0  = DS;
         delta_phi = phi - phi0;
         phi0 = phi;
-
         phi_desired = atan2f(y_goal-y, x_goal-x);
         error_x = x_goal - x;
         error_y = y_goal - y;
@@ -143,17 +147,17 @@ int main(void)
 
         //system input
 
-        if(abs(error_x) <= 0.1 && abs(error_y) <= 0.1)
+        if(abs(error_x) <= 0.08 && abs(error_y) <= 0.08)
         {
-            // if(iterador <= (NUM_POINTS-1))
+            // if(iterador < (NUM_POINTS-1))
             //     iterador++;
 
             // else
             // {
-            //     // i = 0;
-            //     break;    
+                // i = 0;
+                break;    
             // }
-            break;
+            // break;
         }
 
         
