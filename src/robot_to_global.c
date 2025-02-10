@@ -8,7 +8,7 @@
 #define RAD_TO_DEG 180/M_PI
 #define LENGTH 0.146 //meters
 #define RADIUS 0.040 //meters
-#define PERCENTAGE_ANGULAR 0.6
+#define PERCENTAGE_ANGULAR 0.5
 #define PERCENTAGE_LINEAR 0.3
 #define LIMIT_ANGULAR_ROBOT_SPEED 18.367123 * PERCENTAGE_LINEAR 
 #define LIMIT_LINEAR_ROBOT_SPEED 1.34 * PERCENTAGE_ANGULAR
@@ -45,15 +45,18 @@ void calc_pose(void);
 
 float T = 50e-3;
 // int iterador = 0;
-// float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
-// float y_goal [NUM_POINTS] = {0.0, 1.0, 1.0, 0.0};
-float x_goal = 0;
-float y_goal = 0;
+float x_goal [NUM_POINTS] = {1.0, 1.0, 0.0, 0.0};
+float y_goal [NUM_POINTS] = {1.0, 1.0, 1.0, 0.0};
+// float x_goal = 0;
+// float y_goal = 0;
 float phi = 0, phi0 = 0, phi_desired = 0, delta_phi = 0;
 float delta_distance = 0, distance0 = 0;
 float x = 0, y = 0;
 float error_x = 0, error_y = 0;
 int iterador = 0;
+float v_robot = 0;
+float distance_to_goal = 0;
+float distance;
 
 int main(void)
 {
@@ -82,6 +85,12 @@ int main(void)
     //     return 0;
     // }
 
+    FILE *fp4 = fopen("PID.txt", "w" );
+    if(fp4 == NULL)
+    {
+        printf("Error opening file!\n");
+        return 0;
+    }
     static uint16_t i = 0;
     static float v = 0, w_robot =  0, DS; //meters
     static float WR_ref = 0, WL_ref = 0, VR = 0, VL = 0, yk_MR, yk_ML;
@@ -95,13 +104,13 @@ int main(void)
     global.y = 0;
     global.theta0 = 0;
     global.theta = 0;
-    phi = -M_PI;
+    phi = 0;
 
-    printf("Insert the desired coordinates\n");
-    printf("Insert X goal>> ");
-    scanf("%f", &x_goal);
-    printf("Insert Y goal>> ");
-    scanf("%f", &y_goal);
+    // printf("Insert the desired coordinates\n");
+    // printf("Insert X goal>> ");
+    // scanf("%f", &x_goal);
+    // printf("Insert Y goal>> ");
+    // scanf("%f", &y_goal);
 
     // usleep(1000000);
     Sleep(1000);
@@ -109,7 +118,9 @@ int main(void)
     while(1)
     {
         // printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], x, y, global.x, global.y);        // if(i == 200) //close the file with 200 samples
-        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X local:%7.4f Y local:%7.4f X global:%7.4f Y global:%7.4f phi :%7.4f phi desired:%7.4f\n",float(i*T), x_goal, y_goal, x, y, global.x, global.y, phi, phi_desired);        // if(i == 200) //close the file with 200 samples
+        printf("(%3.2f) X desired:%7.4f Y desired:%7.4f X global:%7.4f Y global:%7.4f\n",float(i*T), x_goal[iterador], y_goal[iterador], global.x, global.y);        
+        // printf("(%3.2f) %7.4f %7.4f %7.4f %7.4f\n",float(i*T), distance_to_goal, distance , phi, phi_desired);        
+        // if(i == 200) //close the file with 200 samples
         // {
         //     fclose(fp0);
         //     fclose(fp1);
@@ -126,6 +137,7 @@ int main(void)
         //     fprintf(fp3, "%7.4f\n", DS);
         // }
         i++;
+        fprintf(fp4, "(%3.2f) %7.4f %7.4f %7.4f %7.4f\n", float(i*T), distance_to_goal, distance , phi, phi_desired);
 
         //calculating displacement and robot theta
         calc_pose();
@@ -134,40 +146,48 @@ int main(void)
         DS     += v;
         w_robot = (RADIUS * ((yk_MR) - (yk_ML)) / LENGTH) * T;
         phi  += w_robot;
-        phi = atan2f(sinf(phi), cosf(phi));
+        phi = atan2(sinf(phi), cosf(phi));
         delta_distance = DS - distance0;
         distance0  = DS;
         delta_phi = phi - phi0;
         phi0 = phi;
-        phi_desired = atan2f(y_goal-y, x_goal-x);
-        error_x = x_goal - x;
-        error_y = y_goal - y;
-        error_disp = sqrt((error_x*error_x)+(error_y*error_y));
-        error_angular = atan2f(sin(phi_desired-phi), cos(phi_desired-phi));
+        phi_desired = atan2(y_goal[iterador]-y, x_goal[iterador]-x);
+        error_x = x_goal[iterador] - x;
+        error_y = y_goal[iterador] - y;
+        distance = sqrt((y*y) + (x*x));
+        distance_to_goal = sqrt((y_goal[iterador]*y_goal[iterador]) + (x_goal[iterador]*x_goal[iterador]));
+        error_disp = abs(sqrt(pow((x_goal[iterador] - x), 2) + pow((y_goal[iterador] - y), 2)));
+        error_angular = atan2(sin(phi_desired-phi), cos(phi_desired-phi));
 
         //system input
 
-        if(abs(error_x) <= 0.08 && abs(error_y) <= 0.08)
+        if(abs(error_x) < 0.1 && abs(error_y) < 0.1)
         {
+            
             // if(iterador < (NUM_POINTS-1))
+            // {
             //     iterador++;
+            //     Sleep(2000);
+            // }
 
             // else
             // {
-                // i = 0;
-                break;    
+            //     i = 0;
+            //     break;    
+            //     fclose(fp4);
             // }
-            // break;
+            break;
         }
 
         
         else
         {
             ext_ctrl = control_system(error_angular, error_disp);
+            v_robot = ext_ctrl.uk_disp;
         }
               
-        VR  = ((2*ext_ctrl.uk_disp) + (ext_ctrl.uk_ang*LENGTH))/(2);
-        VL  = ((2*ext_ctrl.uk_disp) - (ext_ctrl.uk_ang*LENGTH))/(2);
+        VR  = ((2*v_robot) + (ext_ctrl.uk_ang*LENGTH))/(2);
+        VL  = ((2*v_robot) - (ext_ctrl.uk_ang*LENGTH))/(2);
         
         //converting linear motor velocity to angular motor velocity
         WR_ref = VR/RADIUS;
@@ -214,7 +234,7 @@ external_controller control_system(float error_ang, float error_lin)
     error_ang_k1 = error_ang;
     ang_disp.uk_ang1 = ang_disp.uk_ang;
 
-    ang_disp.uk_disp = 1.4939*error_lin - 1.442808*error_disp_k1 + ang_disp.uk_disp1; //linear speed
+    ang_disp.uk_disp = 2.8154*error_lin - 2.719113*error_disp_k1 + ang_disp.uk_disp1; //linear speed
     if(ang_disp.uk_disp > LIMIT_LINEAR_ROBOT_SPEED)
         ang_disp.uk_disp  = LIMIT_LINEAR_ROBOT_SPEED;
     else if(ang_disp.uk_disp < -LIMIT_LINEAR_ROBOT_SPEED)
